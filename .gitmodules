@@ -1,0 +1,6 @@
+[submodule "models/pytorch-yolo3"]
+	path = models/pytorch-yolo3
+	url = https://github.com/marvis/pytorch-yolo3.git
+[submodule "pytorch-0.4-yolov3"]
+	path = pytorch-0.4-yolov3
+	url = https://github.com/andy-yun/pytorch-0.4-yolov3.git
