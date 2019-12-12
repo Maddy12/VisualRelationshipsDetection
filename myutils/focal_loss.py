@@ -76,7 +76,7 @@ class FocalLoss(nn.Module):
           (tensor) loss = SmoothL1Loss(loc_preds, loc_targets) + FocalLoss(cls_preds, cls_targets).
         '''
         ## Modified ##
-        # cls_preds = 
+        # cls_preds = []
 
 
         batch_size, num_boxes = cls_targets.size()

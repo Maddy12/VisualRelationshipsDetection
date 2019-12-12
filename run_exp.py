@@ -10,6 +10,8 @@ from datetime import datetime
 import torch
 from torch.nn import CrossEntropyLoss
 from torchvision import models
+from torchnet.meter.mapmeter import mAPMeter
+from torchnet.logger import MeterLogger
 
 # Local
 from myutils.metrics import *
@@ -108,54 +110,39 @@ def run_model(epoch, model, criterion, optimizer, dataloader,  datalength, devic
     losses = Metrics()
     top1 = Metrics()
     top5 = Metrics()
-
     for batch_idx, (inputs, targets) in enumerate(dataloader):
         # Send inputs and outputs to device which is either 'cpu' or 'cuda'
-        inputs = inputs.to(device)
-        inputs = torch.autograd.Variable(inputs)
-        #### A FIX BECAUSE COLLATE ISSUES SO ANNOYING I KNOW BUT WHATEV ###
-        targets = targets[0]
+        # inputs = inputs.to(device)
+        # inputs = torch.autograd.Variable(inputs)
  
-        # Forward Pass,                   ]
+        # Forward Pass,                   
         outputs = model(inputs, targets)
 
         # measure accuracy and record loss
-        loss = criterion(outputs, targets)
+        gt = targets['gt'].reshape(1, targets['gt'].shape[0], targets['gt'].shape[1])
+        loss = criterion(outputs, gt.cuda())
         if regularizer:
             reg = regularizer(inputs, outputs, targets)
             loss = loss + reg
+            
+        losses.update(float(loss.detach().cpu()), 1)
 
-        if train:
-            losses.update_detection(outputs, inputs.size(0))
-        else:
-            losses.update(loss.data.item(), inputs.size(0))
-            prec1, prec5 = accuracy(outputs['loss_classifier'], targets.data, topk=(1, 5))
-            top1.update(prec1.item(), inputs.size(0))
-            top5.update(prec5.item(), inputs.size(0))
         
         # Backward Pass: compute gradient and do SGD step
         if train:   
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        if not train:
-            bar.suffix = '({batch}/{size}) | Total: {total:} | Epoch: {epoch:} | OrigLoss: {loss:.4f} | top1: {top1: .4f} | top5: {top5: .4f}'.format(
-                batch=batch_idx + 1,
-                size=len(dataloader),
-                total=bar.elapsed_td,
-                epoch=epoch+1,
-                loss=losses.avg,
-                top1=top1.avg,
-                top5=top5.avg,
-            )
-        else:
-            bar.suffix = '({batch}/{size}) | Total: {total:} | Epoch: {epoch:} | OrigLoss: {loss:.4f}'.format(
-                batch=batch_idx + 1,
-                size=len(dataloader),
-                total=bar.elapsed_td,
-                epoch=epoch+1,
-                loss=losses.detect_avg,
-            )
+        preds =   torch.argmax(outputs.squeeze(), dim=0)
+        accuracy = torch.sum((torch.argmax(outputs.squeeze(), dim=0) == gt.cuda()))/float(len(gt.reshape(-1)))*100
+        bar.suffix = '({batch}/{size}) | Total: {total:} | Epoch: {epoch:} | OrigLoss: {loss:.4f} | Acc: {acc: .4f}'.format(
+            batch=batch_idx + 1,
+            size=len(dataloader),
+            total=bar.elapsed_td,
+            epoch=epoch+1,
+            loss=losses.avg,
+            acc=float(accuracy)
+        )
         bar.next() 
     bar.finish()
     return losses.avg, top1.avg
